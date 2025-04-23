@@ -141,9 +141,12 @@ NOTES:
  *   Legal ops: ~ &
  *   Max ops: 14
  *   Rating: 1
+ *   Ref: https://stackoverflow.com/questions/12375808/how-to-make-bit-wise-xor-in-c/12375865#12375865
  */
 int bitXor(int x, int y) {
-  return 2;
+  // x^y = (x|y) & ~(x&y)
+  // x|y = ~(~x|~y)
+    return ~(~x & ~y) & ~(x & y);
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -152,9 +155,7 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-
-  return 2;
-
+    return 1 << 31;
 }
 //2
 /*
@@ -163,9 +164,10 @@ int tmin(void) {
  *   Legal ops: ! ~ & ^ | +
  *   Max ops: 10
  *   Rating: 1
+ *   Ref: https://stackoverflow.com/questions/7300650/how-to-find-tmax-without-using-shifts
  */
 int isTmax(int x) {
-  return 2;
+    return !(~( x + (!(x + 1) ^ (x + 1)))) ;
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -174,9 +176,11 @@ int isTmax(int x) {
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 12
  *   Rating: 2
+ *   Ref: https://zhuanlan.zhihu.com/p/558649812
  */
 int allOddBits(int x) {
-  return 2;
+    int mask = 0xAA | 0xAA <<8 | 0xAA <<16 | 0xAA <<24;
+    return !((x & mask) ^ mask);
 }
 /* 
  * negate - return -x 
@@ -186,7 +190,7 @@ int allOddBits(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+    return ~x + 1;
 }
 //3
 /* 
@@ -197,9 +201,13 @@ int negate(int x) {
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 15
  *   Rating: 3
+ *   Ref: https://zhuanlan.zhihu.com/p/558672400
  */
 int isAsciiDigit(int x) {
-  return 2;
+    int head = (x >> 4) ^ 0x03;
+    int cond1 = !((x & 0xA) ^ 0xA);
+    int cond2 = !((x & 0xC) ^ 0xC);
+    return !(head | cond1 | cond2);
 }
 /* 
  * conditional - same as x ? y : z 
@@ -207,9 +215,11 @@ int isAsciiDigit(int x) {
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 16
  *   Rating: 3
+ *   Ref: https://www.chegg.com/homework-help/questions-and-answers/s-computer-system-course-explain-answer-u-asked-would-approach-answer-q34418643
  */
 int conditional(int x, int y, int z) {
-  return 2;
+    int mask =  ~0 + !x;
+    return (mask & y) | (~(mask) & z);
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -217,9 +227,12 @@ int conditional(int x, int y, int z) {
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 24
  *   Rating: 3
+ *   Ref: https://stackoverflow.com/a/42016321/12971346
+ *   Ref: https://stackoverflow.com/a/42016321/12971346
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+    // ALU 的LESS也是这么做的。
+    return !((y + (~x + 1)) >> 31);
 }
 //4
 /* 
@@ -229,9 +242,10 @@ int isLessOrEqual(int x, int y) {
  *   Legal ops: ~ & ^ | + << >>
  *   Max ops: 12
  *   Rating: 4 
+ *   Ref: https://stackoverflow.com/questions/4764971/implementing-logical-negation-with-only-bitwise-operators-except
  */
 int logicalNeg(int x) {
-  return 2;
+    return ((x >> 31) | ((~x + 1) >> 31)) + 1;
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -246,7 +260,19 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+    int bit16, bit8, bit4, bit2, bit1, bit0;
+    int sign = x >> 31;
+    /* if x<0, y = ~x; else y = x */
+    int y = (sign & ~x) | (~sign & x);
+    /* binary search for highest 1 bit */
+    bit16 = (!!(y >> 16)) << 4;  y >>= bit16;
+    bit8  = (!!(y >> 8))  << 3;  y >>= bit8;
+    bit4  = (!!(y >> 4))  << 2;  y >>= bit4;
+    bit2  = (!!(y >> 2))  << 1;  y >>= bit2;
+    bit1  = (!!(y >> 1));        y >>= bit1;
+    bit0  = y;
+    /* add up positions + 1 sign bit */
+    return bit16 + bit8 + bit4 + bit2 + bit1 + bit0 + 1;
 }
 //float
 /* 
@@ -260,8 +286,25 @@ int howManyBits(int x) {
  *   Max ops: 30
  *   Rating: 4
  */
-unsigned floatScale2(unsigned uf) {
-  return 2;
+ unsigned floatScale2(unsigned uf) {
+    // 2*f  ==  exponent  + 1
+    // 0, Infinity, NaN
+    // Ref: https://stackoverflow.com/questions/24950553/strange-parse-error-with-c-and-dlc-compiler
+    unsigned exp, frac, sign;
+    exp = (uf >> 23) & 0xFF;
+    if(uf == 0 || uf == 0x80000000 || exp == 0xFF)  return uf;
+    frac = uf & 0x7FFFFF;
+    sign = uf >> 31;
+    // Normalized
+    if(exp != 0){
+        exp += 1;
+    }
+    // Denormalized
+    else{
+        frac <<= 1;
+    }
+    uf =  (exp << 23) | frac | (sign << 31);
+    return uf;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -276,7 +319,16 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+    unsigned S, e, E;
+    int V;
+    e = (uf >> 23) & 0xFF;
+    if(e == 0xFF) return 0x80000000u;
+    if(e < 127) return 0;
+    S = uf >> 31;
+    E = e - 127;
+    E = E >= 31 ? 31 : E;
+    V = 1 << E;
+    return S ? -V : V;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -292,5 +344,8 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+    // max 254 - 127 = 127
+    if( x > 127 ) return 0x7F800000u; 
+    if( x < -126 ) return 0;
+    return (x + 127) << 23;
 }
