@@ -5,3 +5,9 @@
 btest
 fshow
 ishow
+
+*.id*
+*.nam
+*.til
+core
+bomb.s
